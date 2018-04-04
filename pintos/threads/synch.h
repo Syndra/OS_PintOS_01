@@ -26,14 +26,27 @@ struct message
    char * name;
  };
 
+ struct message_queue
+ {
+   struct message_queue *next;
+   struct message_queue *prev;
+   struct message *message_in_queue;
+ };
+
  struct mailbox
  {
-   struct list message_list;
    struct semaphore check;
+   struct message_queue *head;
+   struct message_queue *tail;
  };
- void mailbox_init (struct mailbox *);
- void blocking_send (struct mailbox *, struct message *);
- struct message *blocking_receive (struct mailbox *);
+
+ void init_message_queue(struct mailbox *);
+ void mailbox_init (struct mailbox *, unsigned value);
+ bool is_mailboxempty (struct mailbox *);
+ void inqueue (struct message_queue *, struct message_queue *);
+ void dequeue (struct message_queue *, struct message_queue *);
+ void blocking_send (struct mailbox *, struct message_queue *);
+ void blocking_receive (struct mailbox *, struct message_queue *);
  void message_test (void);
 
 /* Lock. */

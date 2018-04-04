@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "threads/interrupt.h"
+#include "devices/timer.h"
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -154,39 +155,79 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
-/* Init list and semaphore of mailbox. */
+/* Inqueue in head, dequeue in tail. */
 void
-mailbox_init (struct mailbox *mailbox_)
+init_message_queue (struct mailbox *mailbox_)
 {
-  ASSERT(mailbox_ != NULL);
-  struct message *idle;
+  mailbox_->head = (struct message_queue*)malloc(sizeof(struct message_queue));
+  mailbox_->tail = (struct message_queue*)malloc(sizeof(struct message_queue));
+  mailbox_->head->message_in_queue = NULL;
+  mailbox_->tail->message_in_queue = NULL;
+  mailbox_->head->next = mailbox_->tail;
+  mailbox_->head->prev = NULL;
+  mailbox_->tail->next = NULL;
+  mailbox_->tail->prev = mailbox_->head;
 
-  list_init(&mailbox_->message_list);
-  list_push_back(&mailbox_->message_list, &idle);
-  sema_init(&mailbox_->check, 1);
+  printf("message queue init!\n");
+}
+
+/* Init queue and semaphore of mailbox. */
+void
+mailbox_init (struct mailbox *mailbox_ , unsigned value)
+{
+  init_message_queue(mailbox_);
+  sema_init(&mailbox_->check, value);
+
+  printf("Mailbox init..! sema = %d\n", mailbox_->check.value);
+}
+
+bool
+is_mailboxempty(struct mailbox *mailbox_)
+{
+  if(mailbox_->head->next == mailbox_->tail)
+    return true;
+  else
+    return false;
+}
+
+void
+inqueue (struct message_queue *head, struct message_queue *elem)
+{
+  elem->next = head->next;
+  elem->prev = head;
+  head->next->prev = elem;
+  head->next = elem;
+}
+
+void
+dequeue (struct message_queue *tail, struct message_queue *elem)
+{
+  elem = tail->prev;
+  tail->prev->prev->next = tail;
+  tail->prev = tail->prev->prev;
+  elem->next = NULL;
+  elem->prev = NULL;
 }
 
 /* When this function is called, parameter msg goes to list named
   mailbox, and semaphore for signal to another thread which sharing
   same mailbox to unblock thread with blocking itself. */
 void
-blocking_send(struct mailbox *mailbox_, struct message *msg)
+blocking_send(struct mailbox *mailbox_, struct message_queue *message_)
 {
-  list_push_back(&mailbox_->message_list, &msg);
-  sema_down(&mailbox_->check);
+  sema_up(&mailbox_->check);
+  inqueue(mailbox_->head, message_);
 }
 
 /* When this function is called, thread get message from mailbox,
   and signal to thread which send message to itself. */
 
-struct message *
-blocking_receive(struct mailbox *mailbox_)
+void
+blocking_receive(struct mailbox *mailbox_, struct message_queue *message_)
 {
-  struct message *msg;
-  msg = list_pop_front(&mailbox_->message_list);
-  sema_up(&mailbox_->check);
-  return msg;
+  sema_down(&mailbox_->check);
+  printf("Thread received message from thread <%s>.\n", mailbox_->tail->prev->message_in_queue->name);
+  dequeue(mailbox_->tail, message_);
 }
 
 static void message_test_helper(void *mailbox);
@@ -196,29 +237,59 @@ void
 message_test(void)
 {
   struct mailbox *mailbox_test;
+  struct message_queue *idle_queue;
 
-  printf("Testing messagepassing...\n");
-  mailbox_init(mailbox_test);
-  thread_create("A", PRI_DEFAULT, message_test_helper, &mailbox_test);
-  thread_create("B", PRI_DEFAULT, message_test_helper, &mailbox_test);
-  printf("Test is finished!\n");
+  printf("Test messagepassing...\n");
+  mailbox_test = (struct mailbox *)malloc(sizeof(struct mailbox));
+  mailbox_init(mailbox_test, 1);
+
+  idle_queue = (struct message_queue *)malloc(sizeof(struct message_queue));
+  idle_queue->next = NULL;
+  idle_queue->prev = NULL;
+  idle_queue->message_in_queue = (struct message *)malloc(sizeof(struct message));
+  idle_queue->message_in_queue->name = (char *)malloc(sizeof("ID"));
+  idle_queue->message_in_queue->name = "ID";
+  inqueue(mailbox_test->head, idle_queue);
+  printf("ready to thread run!\n");
+  thread_create("A", PRI_DEFAULT, message_test_helper, mailbox_test);
+  thread_create("B", PRI_DEFAULT, message_test_helper, mailbox_test);
+  printf("test is done!\n");
 }
 
 /* Function used for Test. */
-static void message_test_helper(void *mailbox_)
+static void message_test_helper(void * mailbox_)
 {
-  struct message *received_message;
-  struct message *sending_message;
   int i = 0;
+  struct mailbox *mailbox_test = mailbox_;
+  struct message_queue *received_message;
+  struct message_queue *sending_message;
 
-  received_message = blocking_receive(mailbox_);
+  for(i = 0;i<5;i++){
 
-  /* Critical section. */
-  printf("%s \n", &received_message->name);
-  sending_message->name = thread_name();
-  /* End of critical section. */
+    received_message = (struct message_queue *)malloc(sizeof(struct message_queue));
+    received_message->next = NULL;
+    received_message->prev = NULL;
+    received_message->message_in_queue = (struct message *)malloc(sizeof(struct message));
 
-  blocking_send(mailbox_, sending_message);
+    sending_message = (struct message_queue *)malloc(sizeof(struct message_queue));
+    sending_message->next = NULL;
+    sending_message->prev = NULL;
+    sending_message->message_in_queue = (struct message *)malloc(sizeof(struct message));
+
+    sending_message->message_in_queue->name = (char *)malloc(sizeof(thread_name()));
+
+    sending_message->message_in_queue->name = thread_name();
+    blocking_receive(mailbox_, received_message);
+
+    /* Critical section. */
+    printf("thread %s is in critical section.\n", thread_name());
+    timer_sleep(100);
+    /* End of critical section. */
+
+    blocking_send(mailbox_, sending_message);
+    printf("%s thread send message to mailbox.\n", thread_name());
+
+}
 }
 
 /* Initializes LOCK.  A lock can be held by at most a single
