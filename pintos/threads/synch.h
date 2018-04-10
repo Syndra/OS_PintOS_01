@@ -17,7 +17,11 @@ void sema_down (struct semaphore *);
 bool sema_try_down (struct semaphore *);
 void sema_up (struct semaphore *);
 void sema_self_test (void);
-
+/*
+@@@@@@@@@@
+FIXED CODE
+@@@@@@@@@@
+*/
 /* Mailbox & Message. */
 struct message
  {
@@ -42,11 +46,10 @@ struct message
 
  void init_message_queue(struct mailbox *);
  void mailbox_init (struct mailbox *, unsigned value);
- bool is_mailboxempty (struct mailbox *);
  void inqueue (struct message_queue *, struct message_queue *);
- void dequeue (struct message_queue *, struct message_queue *);
+ struct message_queue * dequeue (struct message_queue *, struct message_queue *);
  void blocking_send (struct mailbox *, struct message_queue *);
- void blocking_receive (struct mailbox *, struct message_queue *);
+ struct message_queue * blocking_receive (struct mailbox *, struct message_queue *);
  void message_test (void);
 
 /* Lock. */

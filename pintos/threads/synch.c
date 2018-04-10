@@ -155,6 +155,12 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
+/*
+@@@@@@@@@@@
+FIXED CODE.
+@@@@@@@@@@@
+*/
+
 /* Inqueue in head, dequeue in tail. */
 void
 init_message_queue (struct mailbox *mailbox_)
@@ -181,15 +187,6 @@ mailbox_init (struct mailbox *mailbox_ , unsigned value)
   printf("Mailbox init..! sema = %d\n", mailbox_->check.value);
 }
 
-bool
-is_mailboxempty(struct mailbox *mailbox_)
-{
-  if(mailbox_->head->next == mailbox_->tail)
-    return true;
-  else
-    return false;
-}
-
 void
 inqueue (struct message_queue *head, struct message_queue *elem)
 {
@@ -199,7 +196,7 @@ inqueue (struct message_queue *head, struct message_queue *elem)
   head->next = elem;
 }
 
-void
+struct message_queue *
 dequeue (struct message_queue *tail, struct message_queue *elem)
 {
   elem = tail->prev;
@@ -207,6 +204,7 @@ dequeue (struct message_queue *tail, struct message_queue *elem)
   tail->prev = tail->prev->prev;
   elem->next = NULL;
   elem->prev = NULL;
+  return elem;
 }
 
 /* When this function is called, parameter msg goes to list named
@@ -222,12 +220,13 @@ blocking_send(struct mailbox *mailbox_, struct message_queue *message_)
 /* When this function is called, thread get message from mailbox,
   and signal to thread which send message to itself. */
 
-void
+struct message_queue *
 blocking_receive(struct mailbox *mailbox_, struct message_queue *message_)
 {
   sema_down(&mailbox_->check);
-  printf("Thread received message from thread <%s>.\n", mailbox_->tail->prev->message_in_queue->name);
-  dequeue(mailbox_->tail, message_);
+  //printf("Thread received message from thread <%s>.\n", mailbox_->tail->prev->message_in_queue->name);
+  //dequeue(mailbox_->tail, message_);
+  return dequeue(mailbox_->tail, message_);;
 }
 
 static void message_test_helper(void *mailbox);
@@ -253,7 +252,6 @@ message_test(void)
   printf("ready to thread run!\n");
   thread_create("A", PRI_DEFAULT, message_test_helper, mailbox_test);
   thread_create("B", PRI_DEFAULT, message_test_helper, mailbox_test);
-  printf("test is done!\n");
 }
 
 /* Function used for Test. */
@@ -279,16 +277,18 @@ static void message_test_helper(void * mailbox_)
     sending_message->message_in_queue->name = (char *)malloc(sizeof(thread_name()));
 
     sending_message->message_in_queue->name = thread_name();
-    blocking_receive(mailbox_, received_message);
+    received_message = blocking_receive(mailbox_, received_message);
+    printf("Thread %s received message from thread <%s>.\n", thread_name(), received_message->message_in_queue->name);
 
     /* Critical section. */
     printf("thread %s is in critical section.\n", thread_name());
-    timer_sleep(100);
+    timer_msleep(1000);
     /* End of critical section. */
 
     blocking_send(mailbox_, sending_message);
     printf("%s thread send message to mailbox.\n", thread_name());
 
+    timer_sleep(1);
 }
 }
 
