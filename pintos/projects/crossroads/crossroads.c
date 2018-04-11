@@ -44,7 +44,6 @@ run_crossroads(char **argv)
 	//initialize.
   input = argv[1];
 	numberofcar = (strlen(input) + 1) / 4;
-	sleeptime = numberofcar;
   car_data = (char **)malloc(sizeof(char *) * numberofcar);
 
 	//save mapdata into temporary 2^array called map_draw.
@@ -56,7 +55,6 @@ run_crossroads(char **argv)
       car_location[i][j] =  0;
 		}
 	}
-
 	//tokenize argv with token " : " .
 	i = 0;
 	for (token = strtok_r(input, ":", &save_ptr); token != NULL; token = strtok_r (NULL, ":", &save_ptr))
@@ -190,11 +188,13 @@ car_thread(void) {
   while(true){
 		sema_down(&print);
 		sema_up(&print);
+		//exception handler
 		if(source == destination)
 		{
 			numberofcar--;
 			break;
 		}
+		//condition check
 		else if(source == 'A' && destination == 'B')
 		{
 			if(process_status == 2)
@@ -284,11 +284,12 @@ car_thread(void) {
 		  	}
 				process_status = set_move(2, 1, process_status, car_name);
   	}
+		//end condition check
 		if(process_status > 39)
 		{
 			numberofcar--;
 			break;
 		}
   	timer_sleep(1);
-	}
+	} //end of while
 }
